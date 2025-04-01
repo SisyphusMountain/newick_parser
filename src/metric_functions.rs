@@ -196,5 +196,80 @@ impl FlatTree {
         }
 }
 
+/// Computes the interval intensity by summing transfer rates of all species present
+/// in each time interval (given by the contemporaneity vector).
+///
+/// # Arguments
+/// * `contemporaneity` - A slice of vectors where each inner vector contains node indices for an interval.
+/// * `transfer_rates` - A slice of f64 values with the transfer rate for each species (indexed by node index).
+///
+/// # Returns
+/// A vector of intensities for each interval.
+pub fn compute_interval_intensity(contemporaneity: &[Vec<usize>], transfer_rates: &[f64]) -> Vec<f64> {
+    contemporaneity.iter().map(|species_indices| {
+        species_indices.iter().map(|&i| transfer_rates.get(i).cloned().unwrap_or(0.0)).sum()
+    }).collect()
+}
+
+/// Constructs the cumulative distribution function (CDF) for transfer times.
+///
+/// Instead of using the number of species, this version uses the interval intensity
+/// which is obtained by summing the transfer rates for all species present in the interval.
+/// Each interval's contribution is the product of its length and intensity.
+///
+/// # Arguments
+/// * `intervals` - A vector containing the lengths of time intervals.
+/// * `intensities` - A vector of intensities for each interval.
+///
+/// # Returns
+/// A vector representing the normalized cumulative distribution function.
+pub fn make_cdf(intervals: Vec<f64>, intensities: Vec<f64>) -> Vec<f64> {
+    let n = intervals.len();
+    let mut cdf: Vec<f64> = Vec::with_capacity(n);
+    cdf.push(intervals[0] * intensities[0]);
+    for i in 1..n {
+        cdf.push(cdf[i - 1] + intervals[i] * intensities[i]);
+    }
+    let total_value = cdf[n - 1];
+    for i in 0..n {
+        cdf[i] = cdf[i] / total_value;
+    }
+    cdf
+}
+
+/// Updated function: chooses an interval based on the CDF, then samples a donation time within that interval and selects a species from the provided set.
+/// 
+/// # Arguments
+/// * `cdf` - The cumulative distribution function as a vector of probabilities.
+/// * `depths` - The vector of subdivision depth values.
+/// * `contemporaneous` - The vector of species indices available in the chosen interval.
+/// * `rng` - A mutable reference to a random number generator.
+///
+/// # Returns
+/// A tuple containing the chosen donation time and the randomly selected species index.
+pub fn choose_from_cdf(
+    cdf: &Vec<f64>,
+    depths: &Vec<f64>,
+    contemporaneous: &Vec<usize>,
+    rng: &mut rand::rngs::StdRng,
+) -> (f64, usize) {
+    let r: f64 = rng.gen_range(0.0..1.0);
+    let index = match cdf.binary_search_by(|&probe| probe.partial_cmp(&r).unwrap_or(std::cmp::Ordering::Less)) {
+        Ok(idx) => idx,
+        Err(idx) => {
+            if idx == cdf.len() {
+                panic!("Random value exceeds CDF range. CDF: {:?}", cdf);
+            } else {
+                idx
+            }
+        }
+    };
+    // Interpolate within the chosen interval.
+    let time = (r - cdf[index - 1]) / (cdf[index] - cdf[index - 1]) * (depths[index] - depths[index - 1]) + depths[index - 1];
+    // Randomly choose one species from the set available for this interval.
+    let species_idx = contemporaneous[rng.gen_range(0..contemporaneous.len())];
+    (time, species_idx)
+}
+
 
 
