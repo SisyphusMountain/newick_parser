@@ -117,3 +117,24 @@ pub fn node_to_newick(node: &Node) -> String {
     }
 }
 
+pub fn node_to_newick_no_lengths(node: &Node) -> String {
+    /* Takes a node and returns the corresponding subtree in Newick format without branch lengths.
+        --------------------------------
+        INPUT:
+            - node: the node to convert to Newick format.
+        OUTPUT:
+            - the Newick representation of the subtree rooted at node without branch lengths.
+    */
+    if let (Some(left_child), Some(right_child)) = (&node.left_child, &node.right_child) {
+        // This is an internal node with both left and right children.
+        format!(
+            "({},{}){}",
+            node_to_newick_no_lengths(left_child),
+            node_to_newick_no_lengths(right_child),
+            node.name
+        )
+    } else {
+        // This is a leaf node.
+        format!("{}", node.name)
+    }
+}

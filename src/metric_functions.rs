@@ -1,4 +1,5 @@
 use crate::node::{Node, TraversalOrder, FlatTree};
+use rand::Rng;
 /// Recursively sets the depth of nodes in a tree.
 ///
 /// # Arguments
